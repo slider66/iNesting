@@ -559,70 +559,67 @@
 				setTimeout(function(){
 					var dialog = app.dialog;
 					dialog.showOpenDialog({ filters: [
-				
 					   { name: 'CAD formats', extensions: ['svg', 'dxf', 'cdr'] }
-				
-					  ]}, function (fileName) {
-						if(fileName === undefined){
+					]}).then(function(result) {
+						if(result.canceled || !result.filePaths || result.filePaths.length === 0){
 							importbutton.className = 'button import';
 							console.log("No file selected");
+							return;
+						}
+						var filePath = result.filePaths[0];
+						var ext = path.extname(filePath);
+						var filename = path.basename(filePath);
+
+						if(ext.toLowerCase() == '.svg'){
+							readFile(filePath);
+							importbutton.className = 'button import';
+						}
+						else if(ext.toLowerCase() == '.dxf'){
+							importbutton.className = 'button import spinner';
+
+							fs.readFile(filePath, 'utf-8', function(err, data){
+								importbutton.className = 'button import';
+								if(err){
+									message('could not read DXF file: ' + err.message, true);
+									return;
+								}
+								try {
+									const dxfLib = require('dxf');
+									const parsed = dxfLib.parseString(data);
+									const svgString = dxfLib.toSVG(parsed);
+									const con = Number(config.getSync('dxfImportScale'));
+									importData(svgString, filename, null, con, true);
+								} catch(e) {
+									message('could not parse DXF file: ' + e.message, true);
+								}
+							});
 						}
 						else{
-							var ext = path.extname(fileName[0]);
-							var filename = path.basename(fileName[0]);
+							importbutton.className = 'button import spinner';
 
-							if(ext.toLowerCase() == '.svg'){
-								readFile(fileName[0]);
+							// CDR and other non-DXF formats still use conversion server
+							var serverUrl = config.getSync('conversionServer');
+							if(!serverUrl){
+								serverUrl = defaultConversionServer;
+							}
+
+							var req = request.post(serverUrl, function(err, resp, body){
 								importbutton.className = 'button import';
-							}
-							else if(ext.toLowerCase() == '.dxf'){
-								importbutton.className = 'button import spinner';
-
-								fs.readFile(fileName[0], 'utf-8', function(err, data){
-									importbutton.className = 'button import';
-									if(err){
-										message('could not read DXF file: ' + err.message, true);
-										return;
-									}
-									try {
-										const dxfLib = require('dxf');
-										const parsed = dxfLib.parseString(data);
-										const svgString = dxfLib.toSVG(parsed);
-										const con = Number(config.getSync('dxfImportScale'));
-										importData(svgString, filename, null, con, true);
-									} catch(e) {
-										message('could not parse DXF file: ' + e.message, true);
-									}
-								});
-							}
-							else{
-								importbutton.className = 'button import spinner';
-
-								// CDR and other non-DXF formats still use conversion server
-								var serverUrl = config.getSync('conversionServer');
-								if(!serverUrl){
-									serverUrl = defaultConversionServer;
-								}
-
-								var req = request.post(serverUrl, function(err, resp, body){
-									importbutton.className = 'button import';
-									if(err){
-										message('could not contact file conversion server', true);
+								if(err){
+									message('could not contact file conversion server', true);
+								} else {
+									if(body.substring(0, 5) == 'error'){
+										message(body, true);
 									} else {
-										if(body.substring(0, 5) == 'error'){
-											message(body, true);
-										} else {
-											importData(body, filename, null, null, false);
-										}
+										importData(body, filename, null, null, false);
 									}
-								});
+								}
+							});
 
-								var form = req.form();
-								form.append('format', 'svg');
-								form.append('fileUpload', fs.createReadStream(fileName[0]));
-							}
+							var form = req.form();
+							form.append('format', 'svg');
+							form.append('fileUpload', fs.createReadStream(filePath));
 						}
-						
 					});
 				}, 50);
 				
@@ -978,70 +975,43 @@
 			
 			var exportsvg = document.querySelector('#exportsvg');
 			exportsvg.onclick = function(){
-				
 				var dialog = app.dialog;
-				dialog.showSaveDialog({title: 'Export Deepnest SVG'}, function (fileName) {
-					if(fileName === undefined){
-						console.log("No file selected");
-					}
-					else{
-						var selected = DeepNest.nests.filter(function(n){
-							return n.selected;
-						});
-						
-						if(selected.length == 0){
-							return false;
-						}
-						
-						fs.writeFileSync(fileName, exportNest(selected.pop()));
-					}
+				dialog.showSaveDialog({title: 'Export Deepnest SVG'}).then(function(result) {
+					if(result.canceled || !result.filePath) return;
+					var selected = DeepNest.nests.filter(function(n){ return n.selected; });
+					if(selected.length == 0) return;
+					fs.writeFileSync(result.filePath, exportNest(selected.pop()));
 				});
 			};
 			
 			var exportdxf = document.querySelector('#exportdxf');
 			exportdxf.onclick = function(){
 				var dialog = app.dialog;
-				dialog.showSaveDialog({title: 'Export Deepnest DXF'}, function (fileName) {
-					if(fileName === undefined){
-						console.log("No file selected");
-					}
-					else{
-						var selected = DeepNest.nests.filter(function(n){
-							return n.selected;
-						});
-						
-						if(selected.length == 0){
-							return false;
-						}
-						// send to conversion server
-						var url = config.getSync('conversionServer');
-						if(!url){
-							url = defaultConversionServer;
-						}
-						
-						exportbutton.className = 'button export spinner';
-						
-						var req = request.post(url, function (err, resp, body) {
-							exportbutton.className = 'button export';
-							if (err) {
-								message('could not contact file conversion server', true);
-							} else {
-								if(body.substring(0, 5) == 'error'){
-									message(body, true);
-								}
-								else{
-									fs.writeFileSync(fileName, body);
-								}
-							}
-						});
+				dialog.showSaveDialog({title: 'Export Deepnest DXF'}).then(function(result) {
+					if(result.canceled || !result.filePath) return;
+					var selected = DeepNest.nests.filter(function(n){ return n.selected; });
+					if(selected.length == 0) return;
 
-						var form = req.form();
-						form.append('format', 'dxf');
-						form.append('fileUpload', exportNest(selected.pop(), true), {
-						  filename: 'deepnest.svg',
-						  contentType: 'image/svg+xml'
-						});
-					}
+					var serverUrl = config.getSync('conversionServer') || defaultConversionServer;
+					exportbutton.className = 'button export spinner';
+
+					var req = request.post(serverUrl, function(err, resp, body) {
+						exportbutton.className = 'button export';
+						if(err){
+							message('could not contact file conversion server', true);
+						} else if(body.substring(0, 5) == 'error'){
+							message(body, true);
+						} else {
+							fs.writeFileSync(result.filePath, body);
+						}
+					});
+
+					var form = req.form();
+					form.append('format', 'dxf');
+					form.append('fileUpload', exportNest(selected.pop(), true), {
+					  filename: 'deepnest.svg',
+					  contentType: 'image/svg+xml'
+					});
 				});
 			};
 			/*
