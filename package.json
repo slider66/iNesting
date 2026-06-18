@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node test/test-dxf.js && node test/test-load.js",
+    "package": "electron-packager . iNesting --platform=win32 --arch=x64 --out=dist --overwrite --ignore=^/dist --ignore=^/test --ignore=^/.git --ignore=^/node_modules/electron-builder --ignore=^/node_modules/@electron/rebuild --ignore=^/node_modules/@electron/packager --icon=icon.ico",
     "configure": "node-gyp configure --release",
     "build": "node-gyp rebuild --target=1.4.8 --arch=x64 --dist-url=https://atom.io/download/atom-shell",
     "clean": "node-gyp clean configure build --verbose --target=1.4.8 --arch=ia32 --dist-url=https://atom.io/download/atom-shell",
@@ -25,6 +26,7 @@
     "url": "http://deepnest.io"
   },
   "devDependencies": {
+    "@electron/packager": "^20.0.1",
     "@electron/rebuild": "^3.6.0",
     "electron": "^29.4.6",
     "electron-builder": "^24.13.3"
@@ -42,16 +44,47 @@
     "write-file-queue": "0.0.1"
   },
   "build": {
-    "appId": "com.deepnest.io",
-    "copyright": "Copyright 2016 Jack Qiao",
-    "compression": "maximum",
+    "appId": "io.inesting.app",
+    "productName": "iNesting",
+    "copyright": "Copyright 2016 Jack Qiao. iNesting fork by slider66.",
+    "compression": "normal",
     "nodeGypRebuild": false,
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "main/**/*",
+      "minkowski/**/*",
+      "icons/**/*",
+      "icon.ico",
+      "icon.icns",
+      "node_modules/**/*",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**",
+      "!node_modules/@electron/rebuild/**",
+      "!**/*.md",
+      "!test/**"
+    ],
     "mac": {
       "category": "public.app-category.utilities",
       "icon": "icon.icns"
     },
     "win": {
-      "icon": "icon.ico"
+      "icon": "icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }
