@@ -205,18 +205,20 @@
 		}
 	}
 	
-	// return a path from list that has one and only one endpoint that is coincident with the given path
+	// return a path from list that has one endpoint coincident with the given path
+	// searches the entire list (not just forward) so order in the DOM doesn't matter
 	SvgParser.prototype.getCoincident = function(path, list, tolerance){
 		var index = list.indexOf(path);
-				
-		if(index < 0 || index == list.length-1){
+
+		if(index < 0){
 			return null;
 		}
-				
+
 		var coincident = [];
-		for(var i=index+1; i<list.length; i++){
+		for(var i=0; i<list.length; i++){
+			if(i === index) continue;
 			var c = list[i];
-			
+
 			if(GeometryUtil.almostEqualPoints(path.endpoints.start, c.endpoints.start, tolerance)){
 				coincident.push({path: c, reverse1: true, reverse2: false});
 			}
@@ -230,12 +232,8 @@
 				coincident.push({path: c, reverse1: false, reverse2: false});
 			}
 		}
-		
-		// there is an edge case here where the start point of 3 segments coincide. not going to bother...
-		if(coincident.length > 0){
-			return coincident[0];
-		}
-		return null;
+
+		return coincident.length > 0 ? coincident : null;
 	}
 	
 	SvgParser.prototype.mergeLines = function(root, tolerance){	
@@ -272,60 +270,49 @@
 
 		for(i=0; i<openpaths.length; i++){
 			var p = openpaths[i];
-			var c = this.getCoincident(p, openpaths, tolerance);
+			var candidates = this.getCoincident(p, openpaths, tolerance);
 
-			while(c){
-				if(c.reverse1){
-					this.reverseOpenPath(p);
-				}
-				if(c.reverse2){
-					this.reverseOpenPath(c.path);
-				}
-				
-				/*if(openpaths.length == 2){
-					
-				console.log('premerge A', p.getAttribute('x1'), p.getAttribute('y1'), p.getAttribute('x2'), p.getAttribute('y2'), p.endpoints);
-				console.log('premerge B', c.path.getAttribute('x1'), c.path.getAttribute('y1'), c.path.getAttribute('x2'), c.path.getAttribute('y2'), c.path.endpoints);
-				console.log('premerge C', c.reverse1, c.reverse2);
-				
-				}*/
-				var merged = this.mergeOpenPaths(p,c.path);
-				
-				if(!merged){
-					break;
-				}
-				
-				/*if(openpaths.length == 2){
-				console.log('merged 1', (new XMLSerializer()).serializeToString(p));
-				console.log('merged 2', (new XMLSerializer()).serializeToString(c.path), c.reverse1, c.reverse2, p.endpoints);
-				console.log('merged 3', (new XMLSerializer()).serializeToString(merged));
-				console.log('merged 4', p.endpoints, c.path.endpoints);
-				console.log(root);
-				}*/
-				
-				openpaths.splice(openpaths.indexOf(c.path), 1);
-				
-				root.appendChild(merged);
-				
-				openpaths.splice(i,1, merged);
-				
-				if(this.isClosed(merged, tolerance)){
-					var lastCommand = merged.pathSegList.getItem(merged.pathSegList.numberOfItems-1).pathSegTypeAsLetter;
-					if(lastCommand != 'z' && lastCommand != 'Z'){
-						// endpoints are actually far apart
-						console.log(merged);
-						merged.pathSegList.appendItem(merged.createSVGPathSegClosePath());
+			while(candidates && candidates.length > 0){
+				var merged = null;
+
+				// try each candidate until one merges successfully
+				for(var ci=0; ci<candidates.length; ci++){
+					var c = candidates[ci];
+
+					// apply reversals on copies so we can undo if merge fails
+					if(c.reverse1) this.reverseOpenPath(p);
+					if(c.reverse2) this.reverseOpenPath(c.path);
+
+					merged = this.mergeOpenPaths(p, c.path);
+
+					if(merged){
+						openpaths.splice(openpaths.indexOf(c.path), 1);
+						root.appendChild(merged);
+						openpaths.splice(i, 1, merged);
+
+						if(this.isClosed(merged, tolerance)){
+							var lastCommand = merged.pathSegList.getItem(merged.pathSegList.numberOfItems-1).pathSegTypeAsLetter;
+							if(lastCommand != 'z' && lastCommand != 'Z'){
+								merged.pathSegList.appendItem(merged.createSVGPathSegClosePath());
+							}
+							openpaths.splice(i, 1);
+							i--;
+						}
+						else{
+							merged.endpoints = this.getEndpoints(merged);
+							p = merged;
+						}
+						break;
 					}
-					
-					openpaths.splice(i,1);
-					i--;
-					break;
+					else{
+						// undo reversals before trying next candidate
+						if(c.reverse1) this.reverseOpenPath(p);
+						if(c.reverse2) this.reverseOpenPath(c.path);
+					}
 				}
-				
-				merged.endpoints = this.getEndpoints(merged);
-				
-				p = merged;
-				c = this.getCoincident(p, openpaths, tolerance);
+
+				if(!merged) break;
+				candidates = this.getCoincident(p, openpaths, tolerance);
 			}
 		}
 	}

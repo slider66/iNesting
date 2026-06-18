@@ -1,17 +1,18 @@
 {
-  "name": "Deepnest.io",
-  "version": "1.0.5",
-  "description": "Deep nesting for Laser and CNC",
+  "name": "inesting",
+  "version": "1.1.0",
+  "description": "Nesting for CNC 2D machines — updated fork of Deepnest by Jack Qiao",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node test/test-dxf.js",
     "configure": "node-gyp configure --release",
     "build": "node-gyp rebuild --target=1.4.8 --arch=x64 --dist-url=https://atom.io/download/atom-shell",
     "clean": "node-gyp clean configure build --verbose --target=1.4.8 --arch=ia32 --dist-url=https://atom.io/download/atom-shell",
     "pack": "build --dir",
     "dist": "build"
   },
-  "repository": "https://github.com/Jack000",
+  "repository": "https://github.com/slider66/iNesting",
   "keywords": [
     "Electron",
     "Nesting",
@@ -29,6 +30,7 @@
     "electron-rebuild": "^1.4.0"
   },
   "dependencies": {
+    "dxf": "^5.3.1",
     "electron-config": "^0.2.1",
     "electron-settings": "^2.2.2",
     "electron-window-manager": "^1.0.4",
