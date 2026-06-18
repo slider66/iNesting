@@ -88,13 +88,11 @@
 			  conversionServer: 'http://convert.deepnest.io'
 			};
 			
-			config.defaults(defaultconfig);
-			
 			const defaultConversionServer = 'http://convert.deepnest.io';
-			
-			// set to default if not set (for people with old configs stored)
+
+			// set defaults for any key not yet stored (electron-settings v4 has no defaults() method)
 			for (var key in defaultconfig) {
-			  if(typeof config.getSync(key) === 'undefined'){
+			  if(!config.hasSync(key)){
 			  	config.setSync(key, defaultconfig[key]);
 			  }
 			}
@@ -547,8 +545,7 @@
 			}
 			
 			// file import
-			var electron = require('electron');
-			var app = electron.remote; 
+			var app = require('@electron/remote');
 			var fs = require('fs');
 			
 			var importbutton = document.querySelector('#import');
@@ -1421,11 +1418,6 @@
 			  ev.preventDefault();
 			}
 						
-			var windowManager = app.require('electron-window-manager');
-			
-			const BrowserWindow = app.BrowserWindow;
-			const url = require('url');
-			
 			window.loginWindow = null;
 		});
 		

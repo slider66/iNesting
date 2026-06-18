@@ -1,5 +1,6 @@
 const electron = require('electron')
 const { Menu, ipcMain } = electron
+const remoteMain = require('@electron/remote/main');
 const fs = require('graceful-fs');
 
 // Module to control application life.
@@ -60,17 +61,19 @@ let mainWindow = null;
 var backgroundWindows = [];
 
 // single instance
-const shouldQuit = app.makeSingleInstance((commandLine, workingDirectory) => {
-  // Someone tried to run a second instance, we should focus our window.
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  }
-})
-
-if (shouldQuit) {
-  app.quit()
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 }
+
+remoteMain.initialize();
 
 function createMainWindow() {
 	
@@ -80,7 +83,17 @@ function createMainWindow() {
   var frameless = process.platform == 'darwin';
   //var frameless = true;
   
-  mainWindow = new BrowserWindow({width: Math.ceil(width*0.9), height: Math.ceil(height*0.9), frame: !frameless, show: false})
+  mainWindow = new BrowserWindow({
+    width: Math.ceil(width*0.9),
+    height: Math.ceil(height*0.9),
+    frame: !frameless,
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+  remoteMain.enable(mainWindow.webContents);
 
   // and load the index.html of the app.
   mainWindow.loadURL(url.format({
@@ -110,8 +123,13 @@ function createBackgroundWindows() {
 	// used to have 8, now just 1 background window
 	if(winCount < 1){
 		var back = new BrowserWindow({
-			show: false
+			show: false,
+			webPreferences: {
+				nodeIntegration: true,
+				contextIsolation: false
+			}
 		});
+		remoteMain.enable(back.webContents);
 		
 		//back.webContents.openDevTools();
 		
